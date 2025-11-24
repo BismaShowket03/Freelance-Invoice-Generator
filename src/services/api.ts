@@ -1,5 +1,13 @@
 import axios from 'axios';
-import { Client, Invoice, ClientFormData, InvoiceFormData } from '../types';
+import {
+  Client,
+  Invoice,
+  ClientFormData,
+  InvoiceFormData,
+  LoginFormData,
+  SignupFormData,
+  AuthResponse,
+} from '../types';
 import toast from 'react-hot-toast';
 
 const API_BASE_URL = '/api';
@@ -9,6 +17,47 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+const getStoredToken = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return localStorage.getItem('token');
+};
+
+const initializeToken = () => {
+  const token = getStoredToken();
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  }
+};
+
+initializeToken();
+
+export const setAuthToken = (token: string | null) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (token) {
+    localStorage.setItem('token', token);
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    localStorage.removeItem('token');
+    delete api.defaults.headers.common.Authorization;
+  }
+};
+
+// Automatically attach token to outgoing requests if available
+api.interceptors.request.use((config) => {
+  if (!config.headers?.Authorization) {
+    const token = getStoredToken();
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
 });
 
 // Add response interceptor for better error handling
@@ -27,6 +76,18 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const authApi = {
+  login: async (data: LoginFormData): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/login', data);
+    return response.data;
+  },
+
+  signup: async (data: SignupFormData): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/signup', data);
+    return response.data;
+  },
+};
 
 // Client API
 export const clientApi = {

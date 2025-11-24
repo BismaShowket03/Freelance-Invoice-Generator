@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   const navItems = [
@@ -10,6 +13,12 @@ const Sidebar: React.FC = () => {
     { path: '/invoices', label: 'Invoices', icon: '📄' },
   ];
   const isActive = (path: string) => location.pathname.startsWith(path);
+
+  const handleLogout = () => {
+    signOut();
+    setOpen(false);
+    navigate('/login', { replace: true });
+  };
 
   return (
     <>
@@ -61,6 +70,16 @@ const Sidebar: React.FC = () => {
             </Link>
           ))}
         </nav>
+        <div className="mt-10 border-t border-gray-700 pt-4">
+          <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Signed in as</p>
+          <p className="text-white font-semibold truncate">{user?.name || 'Unknown user'}</p>
+          <button
+            onClick={handleLogout}
+            className="mt-4 w-full px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm font-medium transition-colors"
+          >
+            Log out
+          </button>
+        </div>
       </aside>
     </>
   );

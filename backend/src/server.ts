@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import clientRoutes from './routes/clientRoutes';
 import invoiceRoutes from './routes/invoiceRoutes';
+import authRoutes from './routes/authRoutes';
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ mongoose
   });
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/invoices', invoiceRoutes);
 
