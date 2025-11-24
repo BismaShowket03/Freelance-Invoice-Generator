@@ -13,6 +13,7 @@ const InvoicePreview: React.FC = () => {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -44,6 +45,21 @@ const InvoicePreview: React.FC = () => {
       toast.error('Failed to download PDF');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleSendInvoice = async () => {
+    if (!id) return;
+    try {
+      setSending(true);
+      await invoiceApi.sendEmail(id);
+      toast.success('Invoice emailed to client');
+      await loadInvoice();
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to send invoice';
+      toast.error(message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -86,6 +102,13 @@ const InvoicePreview: React.FC = () => {
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-800">Invoice Preview</h1>
           <div className="flex space-x-2">
+            <Button variant="secondary" onClick={handleSendInvoice} disabled={sending}>
+              {sending
+                ? 'Sending...'
+                : invoice.lastSentAt
+                ? 'Resend Invoice'
+                : 'Send Invoice'}
+            </Button>
             <Button onClick={handleDownloadPDF} disabled={downloading}>
               {downloading ? 'Downloading...' : 'Download PDF'}
             </Button>
@@ -115,6 +138,11 @@ const InvoicePreview: React.FC = () => {
                 <div className="mt-2">
                   <Badge status={invoice.status} />
                 </div>
+                {invoice.lastSentAt && (
+                  <p className="text-sm text-green-600 mt-2">
+                    Last sent: {new Date(invoice.lastSentAt).toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
           </div>

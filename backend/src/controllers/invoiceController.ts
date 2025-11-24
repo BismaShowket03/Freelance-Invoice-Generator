@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import Invoice from '../models/Invoice';
-import Client from '../models/Client';
-import PDFDocument from 'pdfkit';
+import Client, { IClient } from '../models/Client';
+import { streamInvoicePDF, generateInvoicePDFBuffer } from '../services/pdfService';
+import { sendInvoiceEmail as sendInvoiceEmailMessage } from '../services/emailService';
+import { buildInvoiceEmailTemplate } from '../utils/emailTemplates';
 
 // Generate unique invoice number
 const generateInvoiceNumber = (): string => {
@@ -127,79 +129,56 @@ export const downloadInvoicePDF = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    const client = invoice.clientId as any;
-    const doc = new PDFDocument({ margin: 50 });
+    const client = invoice.clientId as IClient;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoiceNumber}.pdf`);
 
-    doc.pipe(res);
-
-    // Header
-    doc.fontSize(20).text('INVOICE', { align: 'center' });
-    doc.moveDown();
-
-    // Invoice details
-    doc.fontSize(12);
-    doc.text(`Invoice Number: ${invoice.invoiceNumber}`, { align: 'left' });
-    doc.text(`Date: ${new Date(invoice.date).toLocaleDateString()}`, { align: 'left' });
-    doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, { align: 'left' });
-    doc.text(`Status: ${invoice.status.toUpperCase()}`, { align: 'left' });
-    doc.moveDown();
-
-    // Client details
-    doc.text('Bill To:', { align: 'left' });
-    doc.text(client.name, { align: 'left' });
-    doc.text(client.email, { align: 'left' });
-    doc.text(client.phone, { align: 'left' });
-    doc.text(client.address, { align: 'left' });
-    doc.moveDown(2);
-
-    // Items table
-    const tableTop = doc.y;
-    const itemHeight = 30;
-    const tableLeft = 50;
-    const descriptionWidth = 300;
-    const quantityWidth = 80;
-    const priceWidth = 100;
-    const totalWidth = 100;
-
-    // Table header
-    doc.fontSize(10).font('Helvetica-Bold');
-    doc.text('Description', tableLeft, tableTop);
-    doc.text('Qty', tableLeft + descriptionWidth, tableTop);
-    doc.text('Price', tableLeft + descriptionWidth + quantityWidth, tableTop);
-    doc.text('Total', tableLeft + descriptionWidth + quantityWidth + priceWidth, tableTop);
-
-    // Table rows
-    let y = tableTop + 20;
-    doc.font('Helvetica');
-    invoice.items.forEach((item) => {
-      const itemTotal = item.quantity * item.price;
-      doc.fontSize(10);
-      doc.text(item.description, tableLeft, y, { width: descriptionWidth });
-      doc.text(item.quantity.toString(), tableLeft + descriptionWidth, y);
-      doc.text(`$${item.price.toFixed(2)}`, tableLeft + descriptionWidth + quantityWidth, y);
-      doc.text(`$${itemTotal.toFixed(2)}`, tableLeft + descriptionWidth + quantityWidth + priceWidth, y);
-      y += itemHeight;
-    });
-
-    // Totals
-    y += 10;
-    doc.moveTo(tableLeft, y).lineTo(tableLeft + descriptionWidth + quantityWidth + priceWidth + totalWidth, y).stroke();
-    y += 20;
-
-    doc.fontSize(12);
-    doc.text(`Subtotal: $${invoice.subtotal.toFixed(2)}`, tableLeft + descriptionWidth + quantityWidth, y);
-    y += 20;
-    doc.text(`Tax: $${invoice.tax.toFixed(2)}`, tableLeft + descriptionWidth + quantityWidth, y);
-    y += 20;
-    doc.fontSize(14).font('Helvetica-Bold');
-    doc.text(`Total: $${invoice.total.toFixed(2)}`, tableLeft + descriptionWidth + quantityWidth, y);
-
-    doc.end();
+    streamInvoicePDF(res, invoice as any, client);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const sendInvoiceEmail = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const invoice = await Invoice.findById(id).populate('clientId');
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const client = invoice.clientId as IClient;
+    if (!client.email) {
+      return res.status(400).json({ error: 'Client does not have an email address' });
+    }
+
+    const pdfBuffer = await generateInvoicePDFBuffer(invoice as any, client);
+    const html = buildInvoiceEmailTemplate(invoice as any, client);
+
+    await sendInvoiceEmailMessage({
+      to: client.email,
+      subject: `Invoice ${invoice.invoiceNumber} - ${client.name}`,
+      html,
+      attachments: [
+        {
+          filename: `invoice-${invoice.invoiceNumber}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
+    });
+
+    invoice.lastSentAt = new Date();
+    invoice.emailSentCount = (invoice.emailSentCount || 0) + 1;
+    await invoice.save();
+
+    const updatedInvoice = await Invoice.findById(id).populate('clientId');
+
+    res.json({ message: 'Invoice emailed successfully', invoice: updatedInvoice });
+  } catch (error: any) {
+    console.error('Failed to send invoice email', error);
+    res.status(500).json({ error: error.message || 'Failed to send invoice email' });
   }
 };
 

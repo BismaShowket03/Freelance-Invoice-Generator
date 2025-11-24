@@ -17,6 +17,8 @@ export interface IInvoice extends Document {
   dueDate: string;
   status: 'paid' | 'pending';
   createdAt: Date;
+  lastSentAt?: Date;
+  emailSentCount?: number;
 }
 
 const InvoiceItemSchema: Schema = new Schema({
@@ -89,6 +91,13 @@ const InvoiceSchema: Schema = new Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  lastSentAt: {
+    type: Date,
+  },
+  emailSentCount: {
+    type: Number,
+    default: 0,
   },
 });
 

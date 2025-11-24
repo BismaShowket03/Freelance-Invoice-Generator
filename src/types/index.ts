@@ -25,6 +25,8 @@ export interface Invoice {
   dueDate: string;
   status: 'paid' | 'pending';
   createdAt: string;
+   lastSentAt?: string;
+   emailSentCount?: number;
 }
 
 export interface ClientFormData {

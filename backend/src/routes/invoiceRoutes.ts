@@ -5,6 +5,7 @@ import {
   createInvoice,
   deleteInvoice,
   downloadInvoicePDF,
+  sendInvoiceEmail,
 } from '../controllers/invoiceController';
 
 const router = express.Router();
@@ -12,6 +13,7 @@ const router = express.Router();
 router.get('/', getAllInvoices);
 router.get('/:id', getInvoiceById);
 router.get('/:id/pdf', downloadInvoicePDF);
+router.post('/:id/email', sendInvoiceEmail);
 router.post('/', createInvoice);
 router.delete('/:id', deleteInvoice);
 

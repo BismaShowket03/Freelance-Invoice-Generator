@@ -14,6 +14,7 @@ const Invoices: React.FC = () => {
   const [filterClientId, setFilterClientId] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('date');
   const [sortOrder, setSortOrder] = useState<string>('desc');
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadClients();
@@ -56,6 +57,20 @@ const Invoices: React.FC = () => {
       loadInvoices();
     } catch (error: any) {
       toast.error('Failed to delete invoice');
+    }
+  };
+
+  const handleSendInvoice = async (id: string) => {
+    setSendingId(id);
+    try {
+      await invoiceApi.sendEmail(id);
+      toast.success('Invoice emailed to client');
+      await loadInvoices();
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to send invoice';
+      toast.error(message);
+    } finally {
+      setSendingId(null);
     }
   };
 
@@ -164,6 +179,9 @@ const Invoices: React.FC = () => {
                   Total
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -189,14 +207,34 @@ const Invoices: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${invoice.total.toFixed(2)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {invoice.lastSentAt ? (
+                      <div>
+                        <p className="font-medium text-green-600">Sent</p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(invoice.lastSentAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Not sent</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <Badge status={invoice.status} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Link
-                      to={`/invoices/${invoice._id}`}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
+                    <button
+                      onClick={() => handleSendInvoice(invoice._id)}
+                      className="text-green-600 hover:text-green-800 mr-4 disabled:opacity-50"
+                      disabled={sendingId === invoice._id}
                     >
+                      {sendingId === invoice._id
+                        ? 'Sending...'
+                        : invoice.lastSentAt
+                        ? 'Resend'
+                        : 'Send'}
+                    </button>
+                    <Link to={`/invoices/${invoice._id}`} className="text-blue-600 hover:text-blue-900 mr-4">
                       View
                     </Link>
                     <button
